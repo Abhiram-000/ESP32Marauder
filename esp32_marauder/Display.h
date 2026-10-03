@@ -25,6 +25,9 @@
 #if (defined(MARAUDER_CARDPUTER) || defined(MARAUDER_CARDPUTER_ADV)) && !defined(ST7789_2_DRIVER)
   #error "Cardputer targets require their ST7789_2_DRIVER TFT_eSPI setup"
 #endif
+#if defined(MARAUDER_S3_DEVKITC) && !defined(ST7735_DRIVER)
+  #error "MARAUDER_S3_DEVKITC requires User_Setup_s3_devkitc.h (ST7735_DRIVER)"
+#endif
 
 #ifdef HAS_CYD_TOUCH
   #include <XPT2046_Touchscreen.h>

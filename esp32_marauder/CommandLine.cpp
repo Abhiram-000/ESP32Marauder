@@ -49,7 +49,7 @@ namespace {
 // GCOVR_EXCL_STOP
 
 // Brightness functions defined in esp32_marauder.ino
-#ifndef HAS_MINI_SCREEN
+#if !defined(HAS_MINI_SCREEN) || defined(HAS_PWM_BACKLIGHT)
   extern void brightnessCycle();
   extern uint8_t getBrightnessLevel();
 #endif
@@ -1434,7 +1434,7 @@ void CommandLine::runCommand(String input) {
 
     // Brightness command
     else if (cmd_args.get(0) == BRIGHTNESS_CMD) {
-      #ifndef HAS_MINI_SCREEN
+      #if !defined(HAS_MINI_SCREEN) || defined(HAS_PWM_BACKLIGHT)
         int c_arg = this->argSearch(&cmd_args, "-c");
         int s_arg = this->argSearch(&cmd_args, "-s");
         if (c_arg != -1) {

@@ -368,7 +368,7 @@ class MenuFunctions
     void changeMenu(Menu* menu, bool simple_change = false);
     void drawStatusBar();
     void displayCurrentMenu(int start_index = 0);
-    #ifndef HAS_MINI_SCREEN
+    #if !defined(HAS_MINI_SCREEN) || defined(HAS_PWM_BACKLIGHT)
       void brightnessMode();
     #endif
     void main(uint32_t currentTime);

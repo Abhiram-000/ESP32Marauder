@@ -42,6 +42,7 @@
   //#define MARAUDER_MINI_V3
   //#define MARAUDER_M5_NANO_C6
   //#define DUAL_MINI_C5
+  //#define MARAUDER_S3_DEVKITC // ESP32-S3-DevKitC-1 + 1.8" ST7735S 160x128 + 5 buttons + WS2812
   //// END BOARD TARGETS
 
   // Allocated only while settings are loaded or updated. This accommodates
@@ -121,6 +122,8 @@
     #define HARDWARE_NAME "Dual Mini C5"
   #elif defined(MARAUDER_M5_NANO_C6)
     #define HARDWARE_NAME "M5 Nano C6"
+  #elif defined(MARAUDER_S3_DEVKITC)
+    #define HARDWARE_NAME "ESP32-S3 DevKitC-1"
   #else
     #define HARDWARE_NAME "ESP32"
   #endif
@@ -635,6 +638,30 @@
     #define HAS_IDF_3
     //#define HAS_DIRECT_UPLOAD
   #endif
+
+  // ESP32-S3-DevKitC-1 N16R8 with a 1.8" ST7735S 160x128 SPI display,
+  // five active-low momentary buttons (internal pullups) and one WS2812.
+  // No SD slot, no GPS, no battery gauge, no touch panel.
+  // NOTE: U_BTN is GPIO3, an ESP32-S3 strapping pin (JTAG source). It is only
+  // read at runtime with an internal pullup, which is safe, but avoid holding
+  // the UP button during power-on/reset.
+  #ifdef MARAUDER_S3_DEVKITC
+    #define HAS_BT
+    #define HAS_BUTTONS
+    #define HAS_MINI_KB
+    #define HAS_SCREEN
+    #define HAS_MINI_SCREEN
+    #define HAS_PSRAM
+    #define HAS_NEOPIXEL_LED
+    // S3 + TFT builds use the ESP32 core 2.0.x / NimBLE 1.x combination
+    // (same as the CI's Cardputer S3 target). IDF 3.x core and NimBLE 2.x
+    // have an S3 SPI register-macro incompatibility with TFT_eSPI 2.5.34.
+    //#define HAS_NIMBLE_2
+    //#define HAS_IDF_3
+    #define HAS_PWM_BACKLIGHT
+    // ESP32-S3 is 2.4 GHz only - do not define HAS_DUAL_BAND.
+    // HAS_DIRECT_UPLOAD and the SD file features require HAS_SD.
+  #endif
   //// END BOARD FEATURES
 
   //// POWER MANAGEMENT
@@ -933,6 +960,28 @@
         #define R_BTN 8
         #define D_BTN 9
       #endif
+
+      #define HAS_L
+      #define HAS_R
+      #define HAS_U
+      #define HAS_D
+      #define HAS_C
+
+      #define L_PULL true
+      #define C_PULL true
+      #define U_PULL true
+      #define R_PULL true
+      #define D_PULL true
+    #endif
+
+    // ESP32-S3-DevKitC-1: five active-low momentary buttons to GND,
+    // driven with the ESP32 internal pullups.
+    #ifdef MARAUDER_S3_DEVKITC
+      #define L_BTN 18
+      #define C_BTN 16
+      #define U_BTN 3
+      #define R_BTN 15
+      #define D_BTN 17
 
       #define HAS_L
       #define HAS_R
@@ -2113,7 +2162,6 @@
 
     #ifdef MARAUDER_MINI_V3
       #define CHAN_PER_PAGE 7
-
       #define SCREEN_CHAR_WIDTH 40
       #define TFT_MISO 19
       #define TFT_MOSI 23
@@ -2124,7 +2172,6 @@
       #define TFT_BL 32
       #define TOUCH_CS 21
       #define SD_CS 4
-
       #define SCREEN_BUFFER
 
       #define MAX_SCREEN_BUFFER 9
@@ -2183,6 +2230,84 @@
       #define GREENBUTTON_W (FRAME_W/2)
       #define GREENBUTTON_H FRAME_H
     
+      #define STATUSBAR_COLOR 0x4A49
+    #endif
+
+    // ESP32-S3-DevKitC-1 with 1.8" ST7735S 160x128.
+    // TFT_WIDTH/TFT_HEIGHT are the native portrait dimensions (128 wide,
+    // 160 tall); SCREEN_ORIENTATION 1 rotates to 160x128 landscape, so
+    // SCREEN_WIDTH/SCREEN_HEIGHT are swapped from the portrait values.
+    #ifdef MARAUDER_S3_DEVKITC
+      #define CHAN_PER_PAGE 7
+
+      #define SCREEN_CHAR_WIDTH 40
+      #define TFT_MISO -1 // not wired on this panel
+      #define TFT_MOSI 11
+      #define TFT_SCLK 12
+      #define TFT_CS 8
+      #define TFT_DC 9
+      #define TFT_RST 10
+      #define TFT_BL 4 // PWM dimmable backlight (HAS_PWM_BACKLIGHT)
+      #define TOUCH_CS -1
+
+      #define SCREEN_BUFFER
+
+      #define MAX_SCREEN_BUFFER 9
+
+      #define BANNER_TEXT_SIZE 1
+
+      #ifndef TFT_WIDTH
+        #define TFT_WIDTH 128
+      #endif
+
+      #ifndef TFT_HEIGHT
+        #define TFT_HEIGHT 160
+      #endif
+
+      #define GRAPH_VERT_LIM SCREEN_HEIGHT/2 - 1
+
+      #define EXT_BUTTON_WIDTH 0
+
+      #define SCREEN_ORIENTATION 1 // landscape 160x128
+
+      #define CHAR_WIDTH 6
+      #define SCREEN_WIDTH TFT_HEIGHT // 160 in landscape
+      #define SCREEN_HEIGHT TFT_WIDTH // 128 in landscape
+      #define HEIGHT_1 TFT_WIDTH // 128 landscape height
+      #define WIDTH_1 TFT_HEIGHT // 160 landscape width
+      #define STANDARD_FONT_CHAR_LIMIT (TFT_WIDTH/6) // number of characters on a single line with normal font
+      #define TEXT_HEIGHT (TFT_HEIGHT/10) // Height of text to be printed and scrolled
+      #define BOT_FIXED_AREA 0 // Number of lines in bottom fixed area (lines counted from bottom of screen)
+      #define TOP_FIXED_AREA 48 // Number of lines in top fixed area (lines counted from top of screen)
+      #define YMAX TFT_HEIGHT // Bottom of screen area
+      #define minimum(a,b)     (((a) < (b)) ? (a) : (b))
+      //#define MENU_FONT NULL
+      #define MENU_FONT &FreeMono9pt7b // Winner
+      //#define MENU_FONT &FreeMonoBold9pt7b
+      //#define MENU_FONT &FreeSans9pt7b
+      //#define MENU_FONT &FreeSansBold9pt7b
+      #define BUTTON_SCREEN_LIMIT 6
+      #define BUTTON_ARRAY_LEN BUTTON_SCREEN_LIMIT
+      #define STATUS_BAR_WIDTH 12
+      #define LVGL_TICK_PERIOD 6
+
+      #define FRAME_X 100
+      #define FRAME_Y 64
+      #define FRAME_W 120
+      #define FRAME_H 50
+
+      // Red zone size
+      #define REDBUTTON_X FRAME_X
+      #define REDBUTTON_Y FRAME_Y
+      #define REDBUTTON_W (FRAME_W/2)
+      #define REDBUTTON_H FRAME_H
+
+      // Green zone size
+      #define GREENBUTTON_X (REDBUTTON_X + REDBUTTON_W)
+      #define GREENBUTTON_Y FRAME_Y
+      #define GREENBUTTON_W (FRAME_W/2)
+      #define GREENBUTTON_H FRAME_H
+
       #define STATUSBAR_COLOR 0x4A49
     #endif
 
@@ -2506,6 +2631,27 @@
     #define ICON_H 22
     #define BUTTON_PADDING 10
   #endif
+
+  // ESP32-S3-DevKitC-1 landscape keypad/menu geometry.
+  // Six 14px rows fit between the banner and the bottom of the 128px-tall
+  // landscape display: first button centre at y=37, last row bottom at y=119.
+  #ifdef MARAUDER_S3_DEVKITC
+    #define BANNER_TIME 50
+
+    #define COMMAND_PREFIX "!"
+
+    // Keypad start position, key sizes and spacing
+    #define KEY_X (SCREEN_WIDTH/2) // Centre of key
+    #define KEY_Y (STATUS_BAR_WIDTH + TEXT_HEIGHT + (KEY_H/2) + 2) // 37
+    #define KEY_W SCREEN_WIDTH // Width and height
+    #define KEY_H 14
+    #define KEY_SPACING_X 0 // X and Y gap
+    #define KEY_SPACING_Y 1
+    #define KEY_TEXTSIZE 1   // Font size multiplier
+    #define ICON_W 22
+    #define ICON_H 22
+    #define BUTTON_PADDING 7
+  #endif
   //// END MENU DEFINITIONS
 
   //// SD DEFINITIONS
@@ -2719,6 +2865,8 @@
     #define MEM_LOWER_LIM 10000
   #elif defined(MARAUDER_MINI_V3)
     #define MEM_LOWER_LIM 10000
+  #elif defined(MARAUDER_S3_DEVKITC)
+    #define MEM_LOWER_LIM 10000
   #else
     #define MEM_LOWER_LIM 10000
   #endif
@@ -2749,6 +2897,8 @@
       #define PIN 21
     #elif defined(MARAUDER_M5_NANO_C6)
       #define PIN 20
+    #elif defined(MARAUDER_S3_DEVKITC)
+      #define PIN 48 // single WS2812 on the DevKitC-1 RGB LED pin
     #else
       #define PIN 25
     #endif

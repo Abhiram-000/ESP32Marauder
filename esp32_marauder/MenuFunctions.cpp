@@ -1518,7 +1518,7 @@ void MenuFunctions::drawStatusBar()
     #endif
   #endif
 
-  #ifdef HAS_MINI_SCREEN
+  #if defined(HAS_MINI_SCREEN) && defined(HAS_SD)
     display_obj.tft.setTextColor(the_color, STATUSBAR_COLOR);
     display_obj.tft.drawString("SD", TFT_WIDTH - 12, 0, 1);
   #endif
@@ -3680,11 +3680,13 @@ void MenuFunctions::RunSetup()
     }
   #endif
 
-  this->addNodes(&deviceMenu, "Save/Load Files", TFTCYAN, SD_UPDATE, [this]() {
-    this->changeMenu(&saveFileMenu, true);
-  });
+  #ifdef HAS_SD
+    this->addNodes(&deviceMenu, "Save/Load Files", TFTCYAN, SD_UPDATE, [this]() {
+      this->changeMenu(&saveFileMenu, true);
+    });
+  #endif
 
-  #ifndef HAS_MINI_SCREEN
+  #if !defined(HAS_MINI_SCREEN) || defined(HAS_PWM_BACKLIGHT)
     this->addNodes(&deviceMenu, "Brightness", TFTYELLOW, BRIGHTNESS, [this]() {
       this->brightnessMode();
     });
@@ -5124,10 +5126,12 @@ void MenuFunctions::displayCurrentMenu(int start_index)
 
 // ============================================================
 // BRIGHTNESS ADJUSTMENT MODE
-// Hold top/bottom zone 1.5s to enter. TAP TOP = brighter, TAP BOTTOM = dimmer.
-// TAP MIDDLE or wait 3s = save & exit.
+// Touch boards: hold top/bottom zone 1.5s to enter. TAP TOP = brighter,
+// TAP BOTTOM = dimmer. TAP MIDDLE or wait 3s = save & exit.
+// Button boards: UP = brighter, DOWN = dimmer, SELECT = save & exit,
+// or wait 3s to auto-save.
 // ============================================================
-#ifndef HAS_MINI_SCREEN
+#if !defined(HAS_MINI_SCREEN) || defined(HAS_PWM_BACKLIGHT)
   void MenuFunctions::brightnessMode() {
     extern void brightnessSave(uint8_t level);
     extern uint8_t getBrightnessLevel();
@@ -5143,67 +5147,132 @@ void MenuFunctions::displayCurrentMenu(int start_index)
       #define BL_PREVIEW(duty) ledcWrite(0, (duty))
     #endif
 
+    // SCREEN_WIDTH/SCREEN_HEIGHT are correct in every rotation; on
+    // orientation-0 boards they equal TFT_WIDTH/TFT_HEIGHT.
+    const int16_t sw = SCREEN_WIDTH;
+    const int16_t sh = SCREEN_HEIGHT;
+
     display_obj.tft.fillScreen(TFT_BLACK);
     display_obj.tft.setTextColor(TFT_CYAN, TFT_BLACK);
-    display_obj.tft.drawCentreString("BRIGHTNESS", TFT_WIDTH/2, 30, 2);
+    display_obj.tft.drawCentreString("BRIGHTNESS", sw / 2, 2, 2);
 
-    display_obj.tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
-    display_obj.tft.drawCentreString("TAP TOP = BRIGHTER", TFT_WIDTH/2, 10, 1);
-    display_obj.tft.drawCentreString("TAP BOTTOM = DIMMER", TFT_WIDTH/2, TFT_HEIGHT - 20, 1);
-    display_obj.tft.setTextColor(TFT_RED, TFT_BLACK);
-    display_obj.tft.drawCentreString("TAP MIDDLE or WAIT 3s = SAVE", TFT_WIDTH/2, TFT_HEIGHT/2 + 50, 1);
+    #ifdef HAS_TOUCH
+      display_obj.tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+      display_obj.tft.drawCentreString("TAP TOP = BRIGHTER", sw / 2, sh - 44, 1);
+      display_obj.tft.drawCentreString("TAP BOTTOM = DIMMER", sw / 2, sh - 32, 1);
+      display_obj.tft.setTextColor(TFT_RED, TFT_BLACK);
+      display_obj.tft.drawCentreString("TAP MIDDLE or WAIT 3s = SAVE", sw / 2, sh - 20, 1);
+    #else
+      display_obj.tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+      display_obj.tft.drawCentreString("UP = BRIGHTER", sw / 2, sh - 44, 1);
+      display_obj.tft.drawCentreString("DOWN = DIMMER", sw / 2, sh - 32, 1);
+      display_obj.tft.setTextColor(TFT_RED, TFT_BLACK);
+      display_obj.tft.drawCentreString("SELECT or WAIT 3s = SAVE", sw / 2, sh - 20, 1);
+    #endif
+
+    const int16_t barX = 20, barY = sh / 4, barW = sw - 40, barH = sh / 4;
 
     auto drawBar = [&]() {
-      uint16_t barX = 30, barY = TFT_HEIGHT/2 - 25, barW = TFT_WIDTH - 60, barH = 30;
       display_obj.tft.drawRect(barX, barY, barW, barH, TFT_WHITE);
       uint16_t fillW = (barW - 4) * (level + 1) / numLevels;
       display_obj.tft.fillRect(barX + 2, barY + 2, barW - 4, barH - 4, TFT_BLACK);
       display_obj.tft.fillRect(barX + 2, barY + 2, fillW, barH - 4, TFT_CYAN);
-      display_obj.tft.fillRect(0, barY + barH + 5, TFT_WIDTH, 20, TFT_BLACK);
+      display_obj.tft.fillRect(0, barY + barH + 5, sw, 20, TFT_BLACK);
       display_obj.tft.setTextColor(TFT_WHITE, TFT_BLACK);
       String pct = String(levels[level] * 100 / 255) + "%";
-      display_obj.tft.drawCentreString(pct, TFT_WIDTH/2, barY + barH + 8, 2);
+      display_obj.tft.drawCentreString(pct, sw / 2, barY + barH + 8, 2);
     };
     drawBar();
 
-    uint16_t zoneUp = TFT_HEIGHT * 25 / 100;
-    uint16_t zoneDown = TFT_HEIGHT * 75 / 100;
-    uint32_t lastTouch = millis();
+    #ifdef HAS_TOUCH
+      uint16_t zoneUp = sh * 25 / 100;
+      uint16_t zoneDown = sh * 75 / 100;
+      uint32_t lastTouch = millis();
 
-    while (true) {
-      // Auto-save after 3s of no touch
-      if (millis() - lastTouch >= 3000) {
-        brightnessSave(level);
-        break;
-      }
-
-      uint16_t tx, ty;
-      if (display_obj.updateTouch(&tx, &ty)) {
-        lastTouch = millis();
-        // Wait for release
-        while (display_obj.updateTouch(&tx, &ty)) delay(10);
-
-        if (ty < zoneUp) {
-          if (level < numLevels - 1) {
-            level++;
-            BL_PREVIEW(levels[level]);
-            drawBar();
-          }
-        } else if (ty >= zoneDown) {
-          if (level > 0) {
-            level--;
-            BL_PREVIEW(levels[level]);
-            drawBar();
-          }
-        } else {
-          // Middle = save now
+      while (true) {
+        // Auto-save after 3s of no touch
+        if (millis() - lastTouch >= 3000) {
           brightnessSave(level);
           break;
         }
-        delay(150);
+
+        uint16_t tx, ty;
+        if (display_obj.updateTouch(&tx, &ty)) {
+          lastTouch = millis();
+          // Wait for release
+          while (display_obj.updateTouch(&tx, &ty)) delay(10);
+
+          if (ty < zoneUp) {
+            if (level < numLevels - 1) {
+              level++;
+              BL_PREVIEW(levels[level]);
+              drawBar();
+            }
+          } else if (ty >= zoneDown) {
+            if (level > 0) {
+              level--;
+              BL_PREVIEW(levels[level]);
+              drawBar();
+            }
+          } else {
+            // Middle = save now
+            brightnessSave(level);
+            break;
+          }
+          delay(150);
+        }
+        delay(30);
       }
-      delay(30);
-    }
+    #else
+      // Button-driven adjustment for boards without a touch panel
+      uint32_t lastInput = millis();
+
+      while (true) {
+        // Auto-save after 3s of no input
+        if (millis() - lastInput >= 3000) {
+          brightnessSave(level);
+          break;
+        }
+
+        bool changed = false;
+
+        #if defined(HAS_U) && (U_BTN >= 0)
+          if (u_btn.justPressed()) {
+            lastInput = millis();
+            if (level < numLevels - 1) {
+              level++;
+              changed = true;
+            }
+            while (!u_btn.justReleased()) delay(10);
+          }
+        #endif
+
+        #if defined(HAS_D) && (D_BTN >= 0)
+          if (d_btn.justPressed()) {
+            lastInput = millis();
+            if (level > 0) {
+              level--;
+              changed = true;
+            }
+            while (!d_btn.justReleased()) delay(10);
+          }
+        #endif
+
+        #if defined(HAS_C) && (C_BTN >= 0)
+          if (c_btn.justPressed()) {
+            while (!c_btn.justReleased()) delay(10);
+            brightnessSave(level);
+            break;
+          }
+        #endif
+
+        if (changed) {
+          BL_PREVIEW(levels[level]);
+          drawBar();
+        }
+        delay(30);
+      }
+    #endif
 
     #undef BL_PREVIEW
     this->changeMenu(current_menu, true);

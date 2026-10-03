@@ -133,8 +133,10 @@ uint32_t currentTime  = 0;
 #endif
 
 // Helper macros for LEDC API compatibility (2.x vs 3.x board package)
+// HAS_PWM_BACKLIGHT lets a compact/mini-screen board use the PWM dimming path
+// (previously reserved for full-size screens).
 #ifdef HAS_SCREEN
-  #ifndef HAS_MINI_SCREEN
+  #if !defined(HAS_MINI_SCREEN) || defined(HAS_PWM_BACKLIGHT)
     #if ESP_ARDUINO_VERSION_MAJOR >= 3
       #define BL_SETUP()       ledcAttach(TFT_BL, BL_FREQ, BL_RESOLUTION)
       #define BL_SET(duty)     ledcWrite(TFT_BL, (duty))
@@ -145,7 +147,7 @@ uint32_t currentTime  = 0;
   #endif
 #endif
 
-#ifndef HAS_MINI_SCREEN
+#if !defined(HAS_MINI_SCREEN) || defined(HAS_PWM_BACKLIGHT)
   void brightnessInit() {
     #ifdef HAS_SCREEN
       BL_SETUP();
@@ -244,6 +246,15 @@ void setup()
 
   Serial.begin(115200);
 
+  #if defined(MARAUDER_S3_DEVKITC)
+    // Native USB CDC: do not block boot waiting for a host to open the port,
+    // otherwise the device hangs at the splash when used standalone.
+    // The CLI simply becomes live whenever a host connects.
+  #else
+    while(!Serial)
+      delay(10);
+  #endif
+
   #ifdef HAS_ACT_LED
     pinMode(ACT_LED_PIN, OUTPUT);
     delay(100);
@@ -316,7 +327,7 @@ void setup()
   #endif
 
   // Init PWM brightness AFTER display init (so ledcAttach overrides TFT_eSPI's pinMode)
-  #ifndef HAS_MINI_SCREEN
+  #if !defined(HAS_MINI_SCREEN) || defined(HAS_PWM_BACKLIGHT)
     brightnessInit();
     backlightOff();
   #endif
